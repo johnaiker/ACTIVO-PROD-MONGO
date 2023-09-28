@@ -1,0 +1,104 @@
+package helpers
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"bodp2c/responses"
+	"time"
+)
+
+//VerificarResponse .
+func VerificarResponse(jsonResp []byte) (err error)  {
+	payPM := responses.PayPM{}
+	if err := json.Unmarshal(jsonResp, &payPM); err != nil {
+		err := errors.New("08" + ": Error en la conexion con el banco, Por favor intente nuevamente")
+		return err
+	}
+
+	//Log
+	fmt.Println("Recibido ACTIVO:", payPM)
+	WriteFile([]byte(fmt.Sprintln("Metodo 2,, Pagomovil: :Recibido ACTIVO: ", payPM, time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+
+	//codigo que llega del pagomovil
+	codres := payPM.Id
+	referencia := payPM.RefTransaccion
+	//condicional dependiendo de la respuesta del banco activo
+
+if codres == "PLA4848"{
+err := errors.New(codres + ":" + " Por favor intente nuevamente")
+//              err = errors.New(referencia  + ":" + " Por favor intente nuevamente")
+                ValidError(err)
+                return err
+
+	switch codres {
+	case "PLA4805":
+		//Log
+		fmt.Println("|=====================| Fin |========================|")
+		WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+		//retorno al front dependiendo de la respueta
+		err := errors.New(codres + ": Pago no encontrado")
+		ValidError(err)
+		return err
+	case "PLA0404":
+		//Log
+		fmt.Println("|=====================| Fin |========================|")
+		WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+		//retorno al front dependiendo de la respueta
+		err := errors.New(codres + " : Pago ya usado")
+		ValidError(err)
+		return err
+	case "PLA0001":
+		//Log
+		fmt.Println("|=====================| Fin |========================|")
+		WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+		//retorno al front dependiendo de la respueta
+		err := errors.New(codres + ":" + " Por favor intente nuevamente")
+		ValidError(err)
+		return err
+	case "PLA0000":
+                //Log
+                fmt.Println("|=====================| Fin |========================|")
+                WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+                //retorno al front dependiendo de la respueta
+                err := errors.New(codres + ":" + " Por favor intente nuevamente")
+                ValidError(err)
+                return err
+//	case "PLA4848":
+		//Log
+//		fmt.Println("|=====================| Fin |========================|")
+//		WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+//		//retorno al front dependiendo de la respueta
+//		err := errors.New(codres + ":" + " Por favor intente nuevamente")
+//		err = errors.New(referencia  + ":" + " Por favor intente nuevamente")
+//		ValidError(err)
+//		return err
+	case "PLA4849":
+		//Log
+		fmt.Println("|=====================| Fin |========================|")
+		WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+		//retorno al front dependiendo de la respueta
+		err := errors.New(codres + ":" + " Por favor intente nuevamente")
+		ValidError(err)
+		return err
+       case "PLA4850":
+                //Log
+                fmt.Println("|=====================| Fin |========================|")
+                WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+                //retorno al front dependiendo de la respueta
+                err := errors.New(codres + ":" + " Por favor intente nuevamente")
+                ValidError(err)
+                return err
+	case "PLA4851":
+                //Log
+                fmt.Println("|=====================| Fin |========================|")
+                WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+                //retorno al front dependiendo de la respueta
+                err := errors.New(codres + ":" + " Por favor intente nuevamente")
+                ValidError(err)
+                return err
+	}
+
+
+	return  
+}

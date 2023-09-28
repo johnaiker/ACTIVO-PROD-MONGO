@@ -1,0 +1,266 @@
+package routes
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"pagomovilA/helpers"
+	JSONSructRS "pagomovilA/request"
+	JSONSructRS2 "pagomovilA/responses"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/labstack/echo"
+	"gopkg.in/go-playground/validator.v9"
+)
+
+// Request .
+type Request struct {
+	LOCATOR         string `json:"FLOCATOR" validate:"required"`
+	FIDEMPRESA      string `json:"FIDEMPRESA" validate:"required"`
+	FTELEFONOORIGEN string `json:"TELECONTRAPARTE" validate:"required"`
+	FBANCO          string `json:"FBANCOC"`
+	FTELEFONO       string `json:"FTELEFONO"`
+	FFECHATR        string `json:"FFECHATR" validate:"required"`
+	FMONTO          string `json:"FMONTO" validate:"required"`
+	IP              string `json:"IP" validate:"required"`
+	LOCAD           string `json:"LOCAD"`
+}
+
+// ValidarTransaccion .
+func ValidarTransaccion(c echo.Context) (err error) {
+	var telecontraparte string
+	request := new(JSONSructRS.PayRP)
+	if err = c.Bind(request); err != nil {
+		helpers.ValidError(err)
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"Error": err.Error(),
+		})
+	}
+	//validaciones
+	if err := c.Validate(request); err != nil {
+		errArrayValidation := strings.Split(err.(validator.ValidationErrors).Error(), "\n")
+		helpers.ValidError(err)
+		return c.JSON(http.StatusBadRequest, map[string][]string{"errors": errArrayValidation})
+	}
+	// Guardando e el Log
+	helpers.WriteFile([]byte(fmt.Sprintln("|=====================| Inicio Pagomovil |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+	helpers.WriteFile([]byte(fmt.Sprintf("Pagomovil: Lo que llega del frontend: %+v/n", request)), "proceso.txt")
+	helpers.WriteFile([]byte(fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+	fmt.Println("|=====================| Inicio Pagomovil |========================|")
+	fmt.Printf("Pagomovil: Lo que llega del frontend: %+v/n", request)
+	//Fin del log de la request
+
+	//Variable para el monto
+	monto := request.FMONTO
+
+	MontoFloat, _ := strconv.ParseFloat(monto, 64)
+
+	//pasando a string el monto
+	mont := fmt.Sprintf("% .2f", MontoFloat) // s == "123.456000"
+
+	//tomar el timepo para la bd
+	t := time.Now()
+	tiempo := t.Format("15:04:05")
+	fmt.Println(tiempo)
+
+	//dandole forma a la fecha del time
+	formatted := fmt.Sprintf("%d%02d%02d",
+		t.Year(), t.Month(), t.Day())
+
+	//Llamado a la conexion de la BD para hacer el insert de los datos recibidos del frontend
+	session := helpers.ConnectAndReturnSessionDB()
+
+	//consulta mediante el apikey para traer los datos necesarios del comercio para el envio
+	if err := session.Query(`SELECT telecontraparte FROM activo.comerciop2c WHERE
+	fidempresa = ?`, request.FIDEMPRESA).Scan(&telecontraparte); err != nil {
+		// para cuando tenga errores en la consulta descomentar este return
+		fmt.Println(err, "Error en la consulta")
+		helpers.ValidError(err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"Error":   err.Error(),
+			"code":    "08",
+			"message": "error Fidempresa no encontrada",
+		})
+	}
+
+	fmt.Println(" Telecontraparte: ", telecontraparte)
+
+	//Tomando las variables de la request y remplazandolo para un cuerpo para enviar al banco
+	Requests := new(Request)
+	Requests.LOCATOR = request.LOCATOR
+	Requests.FIDEMPRESA = request.FIDEMPRESA
+	Requests.FTELEFONOORIGEN = telecontraparte
+	Requests.FBANCO = request.FBANCO
+	Requests.FTELEFONO = request.FTELEFONO
+	Requests.FFECHATR = request.FFECHATR
+	Requests.FMONTO = mont
+
+	//guardando en l
+	fmt.Println("Metodo 2, Pagomovil: Lo enviado al banco: ", Requests)
+	helpers.WriteFile([]byte(fmt.Sprintln("pagomovil: lo enviado al banco: ", Requests, time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+	//Variable con la fecha que dimos forma
+	fechart := formatted
+
+	Formatfecha := string(fechart[0]) + string(fechart[1]) + string(fechart[2]) + string(fechart[3]) + "-" + string(fechart[4]) + string(fechart[5]) + "-" + string(fechart[6]) + string(fechart[7])
+
+	montoDecimal, err := helpers.ToDecimal(request.FMONTO)
+	if err != nil {
+		fmt.Println(err.Error())
+		helpers.ValidError(err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"code":    "001",
+			"message": "Posible error al parseo a decimal del campo montoflaot",
+			"Error":   err.Error(),
+		})
+	}
+
+	//parsear el json a []byte para el envio al banco
+	json_data, err := json.Marshal(Requests)
+	if err != nil {
+		//inicio de log si hay algun error al trasnformar de json a []byte para el envio
+		helpers.ValidError(err)
+		fmt.Println("Pagomovil: Error en el parseo de json a []byte: ", err.Error())
+		fmt.Println("|=====================| Fin Pagomovil |========================|")
+		helpers.WriteFile([]byte(fmt.Sprintln("|=====================| Fin Pagomovil |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+		//fin del log
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"code":    "001",
+			"message": "Ocurrio un error inesperado, intente mas tarde",
+		})
+	}
+
+	//cabeza de lo que enviamos al banco
+	header := map[string]string{
+		"content-type":     "application/json",
+		"x-requested-with": "XMLHttpRequest",
+		"cache-control":    "no-cache",
+		"postman-token":    "pLyEqqWAx8LZzCYdjTehVuSBHGG976G5KX",
+	}
+
+	//url donde enviamos al banco activo desarrollo
+	//	url := "https://apis.bancoactivo.com/api/transacciones"
+	url := "http://192.168.105.16/api/transacciones"
+	//cuerpo del envio a al banco
+	bodyResp, _ := helpers.SendJSON(url, header, json_data)
+
+	s := string(bodyResp)
+	fmt.Println("para retornar: ", s)
+	responses := new(JSONSructRS2.PayPM)
+
+	json.Unmarshal(bodyResp, &responses)
+
+	fmt.Println("Recibido BOD:", responses)
+
+	referencia := responses.REFER02
+
+	fmt.Println("Esta es la referencia", referencia)
+
+	if responses.CODRE02 == "00" && responses.STATU02 == "P" {
+
+		if err := session.Query(`INSERT INTO 
+                activo.cobrop2c_new
+                (fidempresa,
+                locator,
+                locad,
+                amount,   
+                bank, 
+                codres, 
+                time, 
+                date, 
+                ip, 
+                phone, 
+                ref, 
+                user,
+                status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			request.FIDEMPRESA,
+			request.LOCATOR,
+			request.LOCAD,
+			montoDecimal,
+			request.FBANCO,
+			responses.CODRE02,
+			tiempo,
+			Formatfecha,
+			request.IP,
+			request.FTELEFONO,
+			responses.REFER02,
+			request.USER,
+			true).Exec(); err != nil {
+			//inicio de log si hay algun error al insertar los datos en la tabla
+			helpers.ValidError(err)
+			fmt.Println("Pagomovil: Error al Insertar los datos a la tabla maestra.pagomovil: ", err.Error())
+			fmt.Println("|=====================| Fin Pagomovil |========================|")
+			helpers.WriteFile([]byte(fmt.Sprintln("|=====================| Fin Pagomovil |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+			//fin del log
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"code":    "001",
+				"message": "Ocurrio un error inesperado, intente mas tarde",
+			})
+		}
+
+		//cerramos la session a la bd
+		defer session.Close()
+
+	} else {
+
+		if err := session.Query(`INSERT INTO 
+		activo.cobrop2c_fault
+                (fidempresa,
+                locator,
+                locad,
+                amount,   
+                bank, 
+                codres, 
+                time, 
+                date, 
+                ip, 
+                phone, 
+                ref, 
+                user,
+                status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			request.FIDEMPRESA,
+			request.LOCATOR,
+			request.LOCAD,
+			montoDecimal,
+			request.FBANCO,
+			responses.CODRE02,
+			tiempo,
+			Formatfecha,
+			request.IP,
+			request.FTELEFONO,
+			responses.REFER02,
+			request.USER,
+			true).Exec(); err != nil {
+			//inicio de log si hay algun error al insertar los datos en la tabla
+			helpers.ValidError(err)
+			fmt.Println("Pagomovil: Error al Insertar los datos a la tabla maestra.pagomovil: ", err.Error())
+			fmt.Println("|=====================| Fin Pagomovil |========================|")
+			helpers.WriteFile([]byte(fmt.Sprintln("|=====================| Fin Pagomovil |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+			//fin del log
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"code":    "001",
+				"message": "Ocurrio un error inesperado, intente mas tarde",
+			})
+		}
+
+		//cerramos la session a la bd
+		defer session.Close()
+
+	}
+
+	fmt.Println("Pagomovil: La referencia recibida es :", referencia)
+	helpers.WriteFile([]byte(fmt.Sprintln("Pagomovil: La referencia recibida es :", referencia, time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+
+	fmt.Println("Pagomovil: Datos retornados: Locator", request.LOCATOR, ", ref: ", referencia)
+
+	//log donde marcamos el fin del proceso
+	fmt.Println("|=====================| Fin |========================|")
+	helpers.WriteFile([]byte(fmt.Sprintln("|=====================| Fin |========================|", time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+	//fin del log
+
+	//los datos que retornamos al front indicando que el proceso se hizo correctamente
+	return c.JSON(http.StatusOK, responses)
+}

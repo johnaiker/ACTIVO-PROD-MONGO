@@ -1,0 +1,32 @@
+package helpers
+
+import (
+	"encoding/json"
+	"fmt"
+	JSONSructRS "bodp2c/responses"
+	"time"
+)
+
+//VerificarResponse .
+func VerificarResponse(jsonResp []byte) string {
+	responses := new(JSONSructRS.PayPM)
+	//payPM := responses.PayPM{}
+	/* 	if err := json.Unmarshal(jsonResp, &responses); err != nil {
+		err := errors.New("08" + ": Error en la conexion con el banco, Por favor intente nuevamente")
+		return err
+	} */
+
+	jsonResp2 := json.Unmarshal(jsonResp, &responses)
+	fmt.Println("HOLA:",jsonResp2)
+	fmt.Println("Recibido ACTIVO:", responses)
+	ref := responses.RefTransaccion
+	if ref == "" {
+		ref = "N/A;"
+ 	}
+	code := responses.Id
+//	message := responses.Mensaje
+	WriteFile([]byte(fmt.Sprintln("%s:::%s\n", "Consulta, Pagomovil: :Recibido ACTIVO: ", responses, time.Now().Format("2006-01-02 15:04:05"))), "proceso.txt")
+
+	return ref + code
+
+}

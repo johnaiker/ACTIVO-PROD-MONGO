@@ -1,0 +1,18 @@
+[Unit]
+Description=Servicio Vuelto P2c de BancoActivo
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/html/P2C-ACTIVO-VUELTO-PROD
+Type=simple
+User=root
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+Restart=on-failure
+RestartSec=10
+ExecStart=/var/www/html/P2C-ACTIVO-VUELTO-PROD/build/vueltop2c
+ExecReload=/var/www/html/P2C-ACTIVO-VUELTO-PROD/build/vueltop2c
+
+[Install]
+WantedBy=multi-user.target
